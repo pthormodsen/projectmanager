@@ -1,0 +1,34 @@
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
+
+@reference "tailwindcss";
+/* Dine egne komponenter */
+@layer components {
+    .kanban-board {
+        @apply flex gap-4 mt-6;
+    }
+
+    .kanban-column {
+        @apply flex-1 bg-gray-100 rounded-lg p-4 min-h-[300px];
+    }
+
+    .kanban-title {
+        @apply text-sm font-semibold uppercase mb-3;
+    }
+
+    .task-card {
+        @apply bg-white rounded-md p-3 mb-3 shadow-sm;
+    }
+
+    .task-title {
+        @apply text-sm font-medium;
+    }
+
+    .task-description {
+        @apply text-xs text-gray-600 mt-1;
+    }
+
+    .icon-button {
+        @apply text-sm cursor-pointer hover:text-blue-600;
+    }
+}
