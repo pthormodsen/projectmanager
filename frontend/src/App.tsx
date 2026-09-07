@@ -48,8 +48,15 @@ export default function App() {
     }, []);
 
     async function handleSignIn(username: string, password: string) {
-        setApiCredentials(username, password);
-        await loadTasks();
+        try {
+            setApiCredentials(username, password);
+            await loadTasks();
+        } catch (err) {
+            if (err instanceof UnauthorizedError) {
+                clearApiCredentials();
+            }
+            throw err;
+        }
     }
 
     function handleSignOut() {
@@ -181,7 +188,11 @@ function SignInPanel({
             }
             await onSignIn(username, password);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Request failed");
+            if (err instanceof UnauthorizedError) {
+                setError("Wrong username or password");
+            } else {
+                setError(err instanceof Error ? err.message : "Request failed");
+            }
         } finally {
             setSubmitting(false);
         }

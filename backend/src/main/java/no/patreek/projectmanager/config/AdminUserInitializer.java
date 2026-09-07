@@ -2,6 +2,7 @@ package no.patreek.projectmanager.config;
 
 import no.patreek.projectmanager.domain.entity.User;
 import no.patreek.projectmanager.repository.UserRepository;
+import no.patreek.projectmanager.service.TaskService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 public class AdminUserInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
+    private final TaskService taskService;
     private final PasswordEncoder passwordEncoder;
     private final boolean securityEnabled;
     private final String username;
@@ -20,6 +22,7 @@ public class AdminUserInitializer implements ApplicationRunner {
 
     public AdminUserInitializer(
         UserRepository userRepository,
+        TaskService taskService,
         PasswordEncoder passwordEncoder,
         @Value("${app.security.enabled:true}") boolean securityEnabled,
         @Value("${app.security.username:}") String username,
@@ -27,6 +30,7 @@ public class AdminUserInitializer implements ApplicationRunner {
         @Value("${app.security.email:admin@projectmanager.local}") String email
     ) {
         this.userRepository = userRepository;
+        this.taskService = taskService;
         this.passwordEncoder = passwordEncoder;
         this.securityEnabled = securityEnabled;
         this.username = username;
@@ -46,6 +50,11 @@ public class AdminUserInitializer implements ApplicationRunner {
         user.setUsername(username);
         user.setEmail(user.getEmail() == null || user.getEmail().isBlank() ? email : user.getEmail());
         user.setPassword(passwordEncoder.encode(password));
-        userRepository.save(user);
+        User saved = userRepository.save(user);
+
+        taskService.findOwnerlessTasks().forEach(task -> {
+            task.setUser(saved);
+            taskService.save(task);
+        });
     }
 }

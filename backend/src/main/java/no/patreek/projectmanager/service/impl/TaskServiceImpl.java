@@ -34,13 +34,17 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public Task create(Task task) {
+        applyDefaults(task);
+        return repository.save(task);
+    }
+
+    private void applyDefaults(Task task) {
         if (task.getProject() == null) {
             task.setProject(getDefaultProject());
         }
         if (task.getStatus() == null) {
             task.setStatus(TaskStatus.TODO);
         }
-        return repository.save(task);
     }
 
     @Override
@@ -64,12 +68,23 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public List<Task> saveAll(List<Task> tasks) {
+        tasks.forEach(this::applyDefaults);
         return repository.saveAll(tasks);
     }
 
     @Override
     public List<Task> findByUserId(Long userId) {
         return repository.findByUserId(userId);
+    }
+
+    @Override
+    public List<Task> findByProjectIdAndUserId(Long projectId, Long userId) {
+        return repository.findByProjectIdAndUserId(projectId, userId);
+    }
+
+    @Override
+    public List<Task> findOwnerlessTasks() {
+        return repository.findByUserIsNull();
     }
 
     @Override

@@ -3,20 +3,26 @@ import { useState } from "react";
 type Props = {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (title: string, description: string) => void;
+    onCreate: (title: string, description: string) => Promise<void>;
 };
 
 export default function AddTaskModal({ isOpen, onClose, onCreate }: Props) {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     if (!isOpen) return null;
 
-    function handleSubmit() {
+    async function handleSubmit() {
         if (!title.trim()) return;
-        onCreate(title, description);
-        setTitle("");
-        setDescription("");
+        setSubmitting(true);
+        try {
+            await onCreate(title.trim(), description.trim());
+            setTitle("");
+            setDescription("");
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     return (
@@ -42,6 +48,7 @@ export default function AddTaskModal({ isOpen, onClose, onCreate }: Props) {
                 <div className="flex justify-end gap-2">
                     <button
                         onClick={onClose}
+                        disabled={submitting}
                         className="px-4 py-2 rounded-lg border"
                     >
                         Cancel
@@ -49,10 +56,10 @@ export default function AddTaskModal({ isOpen, onClose, onCreate }: Props) {
 
                     <button
                         onClick={handleSubmit}
-                        disabled={!title.trim()}
+                        disabled={submitting || !title.trim()}
                         className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
                     >
-                        Create
+                        {submitting ? "Creating..." : "Create"}
                     </button>
                 </div>
             </div>

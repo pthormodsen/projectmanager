@@ -21,6 +21,10 @@ public interface TaskService {
 
     List<Task> findByUserId(Long userId);
 
+    List<Task> findByProjectIdAndUserId(Long projectId, Long userId);
+
+    List<Task> findOwnerlessTasks();
+
     no.patreek.projectmanager.domain.entity.Project getDefaultProject();
 
     Task save(Task task);

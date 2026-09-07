@@ -11,7 +11,33 @@ export class UnauthorizedError extends Error {
 }
 
 function apiUrl(path: string) {
-    return `${API_BASE_URL}${path}`;
+    const base = API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    return `${base}${normalizedPath}`;
+}
+
+async function readErrorMessage(res: Response) {
+    const fallback = `Request failed with status ${res.status}`;
+    const contentType = res.headers.get("content-type") ?? "";
+    const body = await res.text();
+
+    if (!body) {
+        return fallback;
+    }
+
+    if (contentType.includes("application/json")) {
+        try {
+            const parsed = JSON.parse(body) as {
+                message?: string;
+                error?: string;
+            };
+            return parsed.message || parsed.error || fallback;
+        } catch {
+            return fallback;
+        }
+    }
+
+    return body.length > 300 ? fallback : body;
 }
 
 async function apiFetch(path: string, init?: RequestInit, includeAuth = true) {
@@ -30,8 +56,7 @@ async function apiFetch(path: string, init?: RequestInit, includeAuth = true) {
     }
 
     if (!res.ok) {
-        const message = await res.text();
-        throw new Error(message || `Request failed with status ${res.status}`);
+        throw new Error(await readErrorMessage(res));
     }
 
     return res;
@@ -42,7 +67,7 @@ export function hasStoredCredentials() {
 }
 
 export function setApiCredentials(username: string, password: string) {
-    localStorage.setItem(AUTH_STORAGE_KEY, btoa(`${username}:${password}`));
+    localStorage.setItem(AUTH_STORAGE_KEY, btoa(`${username.trim()}:${password}`));
 }
 
 export function clearApiCredentials() {

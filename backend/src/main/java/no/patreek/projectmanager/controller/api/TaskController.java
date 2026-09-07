@@ -10,15 +10,14 @@ import no.patreek.projectmanager.domain.entity.Task;
 import no.patreek.projectmanager.domain.enums.TaskStatus;
 import no.patreek.projectmanager.repository.ProjectRepository;
 import no.patreek.projectmanager.repository.UserRepository;
+import no.patreek.projectmanager.service.CurrentUserService;
 import no.patreek.projectmanager.service.TaskService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -27,29 +26,33 @@ public class TaskController {
     private final TaskService taskService;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
+    private final CurrentUserService currentUserService;
 
     public TaskController(
         TaskService taskService,
         UserRepository userRepository,
-        ProjectRepository projectRepository
+        ProjectRepository projectRepository,
+        CurrentUserService currentUserService
     ) {
         this.taskService = taskService;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
+        this.currentUserService = currentUserService;
     }
 
     // GET /api/tasks
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getAllTasks(Principal principal) {
-        return currentUser(principal)
-            .map(user -> taskService.findByUserId(user.getId()))
-            .map(tasks -> tasks.stream()
+        if (principal == null) {
+            return ResponseEntity.ok(taskService.findAll().stream()
                 .map(TaskResponse::from)
-                .toList())
-            .map(ResponseEntity::ok)
-            .orElseGet(() -> ResponseEntity.ok(taskService.findAll().stream()
-                .map(TaskResponse::from)
-                .toList()));
+                .toList());
+        }
+
+        var user = currentUserService.requireCurrentUser(principal);
+        return ResponseEntity.ok(taskService.findByUserId(user.getId()).stream()
+            .map(TaskResponse::from)
+            .toList());
     }
 
     // GET /api/tasks/{id}
@@ -80,11 +83,8 @@ public class TaskController {
             }
             task.setProject(project.get());
         }
-        var currentUser = currentUser(principal);
-        if (currentUser.isPresent()) {
-            task.setUser(currentUser.get());
-        } else if (principal != null) {
-            throw new UsernameNotFoundException("Signed-in user not found");
+        if (principal != null) {
+            task.setUser(currentUserService.requireCurrentUser(principal));
         } else if (req.userId() != null) {
             var user = userRepository.findById(req.userId());
             if (user.isEmpty()) {
@@ -131,11 +131,9 @@ public class TaskController {
     // BULK CREATE
     @PostMapping("/bulk")
     public ResponseEntity<List<TaskResponse>> createTasks(@RequestBody List<Task> tasks, Principal principal) {
-        var currentUser = currentUser(principal);
-        if (currentUser.isPresent()) {
-            tasks.forEach(task -> task.setUser(currentUser.get()));
-        } else if (principal != null) {
-            throw new UsernameNotFoundException("Signed-in user not found");
+        if (principal != null) {
+            var currentUser = currentUserService.requireCurrentUser(principal);
+            tasks.forEach(task -> task.setUser(currentUser));
         }
         List<TaskResponse> savedTasks = taskService.saveAll(tasks).stream()
             .map(TaskResponse::from)
@@ -170,8 +168,7 @@ public class TaskController {
         if (!canAccessTaskId(id, principal)) {
             return ResponseEntity.notFound().build();
         }
-        var currentUser = currentUser(principal);
-        if (currentUser.isPresent() && !currentUser.get().getId().equals(req.userId())) {
+        if (principal != null && !currentUserService.requireCurrentUser(principal).getId().equals(req.userId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cannot assign another user's tasks");
         }
         return taskService.findById(id)
@@ -186,13 +183,6 @@ public class TaskController {
             .orElse(ResponseEntity.notFound().build());
     }
 
-    private Optional<no.patreek.projectmanager.domain.entity.User> currentUser(Principal principal) {
-        if (principal == null) {
-            return Optional.empty();
-        }
-        return userRepository.findByUsername(principal.getName());
-    }
-
     private boolean canAccessTaskId(Long id, Principal principal) {
         return taskService.findById(id)
             .map(task -> canAccess(task, principal))
@@ -203,9 +193,6 @@ public class TaskController {
         if (principal == null) {
             return true;
         }
-        var currentUser = currentUser(principal);
-        return currentUser.isPresent()
-            && task.getUser() != null
-            && task.getUser().getId().equals(currentUser.get().getId());
+        return currentUserService.owns(currentUserService.requireCurrentUser(principal), task.getUser());
     }
 }

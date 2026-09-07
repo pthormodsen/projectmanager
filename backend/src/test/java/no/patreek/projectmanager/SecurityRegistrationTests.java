@@ -111,8 +111,57 @@ class SecurityRegistrationTests {
             .andExpect(jsonPath("$[0].user.username").value("admin"));
     }
 
-    private void register(String username, String email, String password) throws Exception {
-        mockMvc.perform(post("/api/users")
+    @Test
+    void userTaskRoutesCannotAccessAnotherUsersTasks() throws Exception {
+        long aliceId = register("route-alice", "route-alice@example.com", "alice-password");
+        long bobId = register("route-bob", "route-bob@example.com", "bob-password");
+
+        mockMvc.perform(get("/api/users/{id}/tasks", bobId)
+                .header("Authorization", basicAuth("route-alice", "alice-password")))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/users/{id}/tasks", bobId)
+                .header("Authorization", basicAuth("route-alice", "alice-password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Should not belong to Bob",
+                      "description": "Cross-account creation must fail"
+                    }
+                    """))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/users/{id}/tasks", aliceId)
+                .header("Authorization", basicAuth("route-alice", "alice-password")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void projectTaskRoutesAreScopedToSignedInUser() throws Exception {
+        register("project-alice", "project-alice@example.com", "alice-password");
+        register("project-bob", "project-bob@example.com", "bob-password");
+
+        mockMvc.perform(post("/api/projects/1/tasks")
+                .header("Authorization", basicAuth("project-alice", "alice-password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Alice project task",
+                      "description": "Only Alice should see this through project route"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.user.username").value("project-alice"));
+
+        mockMvc.perform(get("/api/projects/1/tasks")
+                .header("Authorization", basicAuth("project-bob", "bob-password")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    private long register(String username, String email, String password) throws Exception {
+        String content = mockMvc.perform(post("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -121,7 +170,13 @@ class SecurityRegistrationTests {
                       "password": "%s"
                     }
                     """.formatted(username, email, password)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        String id = content.replaceAll(".*\\\"id\\\":(\\d+).*", "$1");
+        return Long.parseLong(id);
     }
 
     private static String basicAuth(String username, String password) {

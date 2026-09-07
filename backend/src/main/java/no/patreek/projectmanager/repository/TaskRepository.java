@@ -22,4 +22,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     @EntityGraph(attributePaths = {"project", "user"})
     List<Task> findByProjectId(Long projectId);
+
+    @EntityGraph(attributePaths = {"project", "user"})
+    List<Task> findByProjectIdAndUserId(Long projectId, Long userId);
+
+    @EntityGraph(attributePaths = {"project", "user"})
+    List<Task> findByUserIsNull();
 }
