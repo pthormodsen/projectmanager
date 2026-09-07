@@ -13,6 +13,7 @@ import no.patreek.projectmanager.repository.UserRepository;
 import no.patreek.projectmanager.service.TaskService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -40,9 +41,6 @@ public class TaskController {
     // GET /api/tasks
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getAllTasks(Principal principal) {
-        if (principal != null && currentUser(principal).isEmpty()) {
-            return ResponseEntity.ok(List.of());
-        }
         return currentUser(principal)
             .map(user -> taskService.findByUserId(user.getId()))
             .map(tasks -> tasks.stream()
@@ -85,6 +83,8 @@ public class TaskController {
         var currentUser = currentUser(principal);
         if (currentUser.isPresent()) {
             task.setUser(currentUser.get());
+        } else if (principal != null) {
+            throw new UsernameNotFoundException("Signed-in user not found");
         } else if (req.userId() != null) {
             var user = userRepository.findById(req.userId());
             if (user.isEmpty()) {
@@ -131,7 +131,12 @@ public class TaskController {
     // BULK CREATE
     @PostMapping("/bulk")
     public ResponseEntity<List<TaskResponse>> createTasks(@RequestBody List<Task> tasks, Principal principal) {
-        currentUser(principal).ifPresent(user -> tasks.forEach(task -> task.setUser(user)));
+        var currentUser = currentUser(principal);
+        if (currentUser.isPresent()) {
+            tasks.forEach(task -> task.setUser(currentUser.get()));
+        } else if (principal != null) {
+            throw new UsernameNotFoundException("Signed-in user not found");
+        }
         List<TaskResponse> savedTasks = taskService.saveAll(tasks).stream()
             .map(TaskResponse::from)
             .toList();

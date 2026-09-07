@@ -49,26 +49,14 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService(
-        UserRepository userRepository,
-        PasswordEncoder passwordEncoder,
-        @Value("${app.security.username:admin}") String username,
-        @Value("${app.security.password:change-me}") String password
+        UserRepository userRepository
     ) {
-        return requestedUsername -> {
-            if (requestedUsername.equals(username)) {
-                return User.withUsername(username)
-                    .password(passwordEncoder.encode(password))
-                    .roles("ADMIN")
-                    .build();
-            }
-
-            return userRepository.findByUsername(requestedUsername)
-                .map(user -> User.withUsername(user.getUsername())
-                    .password(user.getPassword())
-                    .roles("USER")
-                    .build())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        };
+        return requestedUsername -> userRepository.findByUsername(requestedUsername)
+            .map(user -> User.withUsername(user.getUsername())
+                .password(user.getPassword())
+                .roles("USER")
+                .build())
+            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     @Bean

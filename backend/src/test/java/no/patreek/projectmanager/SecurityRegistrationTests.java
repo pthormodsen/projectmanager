@@ -90,6 +90,27 @@ class SecurityRegistrationTests {
             .andExpect(jsonPath("$[0].title").value("Bob private task"));
     }
 
+    @Test
+    void configuredAdminIsDatabaseUserAndKeepsTasksAfterReload() throws Exception {
+        mockMvc.perform(post("/api/tasks")
+                .header("Authorization", basicAuth("admin", "admin-password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "title": "Admin persistent task",
+                      "description": "Should still be visible after logging in again"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.user.username").value("admin"));
+
+        mockMvc.perform(get("/api/tasks")
+                .header("Authorization", basicAuth("admin", "admin-password")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].title").value("Admin persistent task"))
+            .andExpect(jsonPath("$[0].user.username").value("admin"));
+    }
+
     private void register(String username, String email, String password) throws Exception {
         mockMvc.perform(post("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
