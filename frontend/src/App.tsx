@@ -6,16 +6,20 @@ import {
     createTask,
     getTasks,
     hasStoredCredentials,
+    isDemoMode,
     registerUser,
+    resetDemoTasks,
     setApiCredentials,
     UnauthorizedError,
     updateTaskStatus,
 } from "./api/taskApi";
 import KanbanBoard from "./components/KanbanBoard";
 import AddTaskModal from "./components/AddTaskModal";
-import { LogOut, Plus } from "lucide-react";
+import { LogOut, Play, Plus } from "lucide-react";
 
 export default function App() {
+    const demoMode = isDemoMode();
+
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -44,6 +48,11 @@ export default function App() {
     }
 
     useEffect(() => {
+        if (!hasStoredCredentials()) {
+            setLoading(false);
+            return;
+        }
+
         loadTasks().catch(() => {});
     }, []);
 
@@ -59,7 +68,14 @@ export default function App() {
         }
     }
 
-    function handleSignOut() {
+    function handleSessionAction() {
+        if (demoMode) {
+            resetDemoTasks();
+            clearApiCredentials();
+            window.location.assign("/");
+            return;
+        }
+
         clearApiCredentials();
         setTasks([]);
         setNeedsSignIn(true);
@@ -71,7 +87,9 @@ export default function App() {
             await updateTaskStatus(taskId, status);
             setTasks(prev =>
                 prev.map(task =>
-                    task.id === taskId ? { ...task, status } : task
+                    task.id === taskId
+                        ? { ...task, status, completed: status === "DONE" }
+                        : task
                 )
             );
             setError(null);
@@ -114,18 +132,23 @@ export default function App() {
                             Project Manager
                         </h1>
                         <p className="text-gray-600">
-                            Manage your tasks efficiently
+                            {demoMode
+                                ? "Demo mode uses example tasks in this browser session only"
+                                : "Manage your tasks efficiently"}
                         </p>
                     </div>
 
                     {!needsSignIn && (
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={handleSignOut}
+                                onClick={handleSessionAction}
                                 className="flex items-center gap-2 px-3 py-2 sm:px-4 bg-white text-gray-700 rounded-lg hover:bg-gray-50 border border-gray-200 shadow-sm"
-                                title="Sign out"
+                                title={demoMode ? "Exit demo" : "Sign out"}
                             >
                                 <LogOut size={18} />
+                                <span className="hidden sm:inline font-medium">
+                                    {demoMode ? "Exit demo" : "Sign out"}
+                                </span>
                             </button>
                             <button
                                 onClick={() => setIsModalOpen(true)}
@@ -198,6 +221,12 @@ function SignInPanel({
         }
     }
 
+    function handleTryDemo() {
+        clearApiCredentials();
+        resetDemoTasks();
+        window.location.assign("/?demo=true");
+    }
+
     return (
         <form
             onSubmit={handleSubmit}
@@ -266,6 +295,15 @@ function SignInPanel({
                 className="mt-3 w-full rounded-lg px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
                 {isRegistering ? "Use an existing account" : "Create a new account"}
+            </button>
+
+            <button
+                type="button"
+                onClick={handleTryDemo}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+            >
+                <Play size={16} />
+                Try demo
             </button>
         </form>
     );
