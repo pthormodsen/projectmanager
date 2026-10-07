@@ -38,11 +38,18 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    container_name: projectmanager
     restart: unless-stopped
     depends_on:
       - backend
-    ports:
-      - "3001:80"
+    networks:
+      - default
+      - cloudflare
 
 volumes:
   postgres-data:
+
+networks:
+  cloudflare:
+    external: true
+    name: cloudflare
